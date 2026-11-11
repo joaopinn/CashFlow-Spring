@@ -34,4 +34,5 @@ public class CategoryMapper {
                 typeMapper.response(category.getType())
         );
     }
+
 }
