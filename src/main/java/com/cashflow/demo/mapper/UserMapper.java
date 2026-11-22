@@ -26,7 +26,7 @@ public class UserMapper {
         user.setName(request.name());
         user.setCnpj(request.cnpj());
         user.setSegment(request.segment());
-        user.setEmail(request.email());
+        user.setEmail(request.email().strip().toLowerCase(java.util.Locale.ROOT));
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setPhone(request.phone());
         user.setRole(request.role());

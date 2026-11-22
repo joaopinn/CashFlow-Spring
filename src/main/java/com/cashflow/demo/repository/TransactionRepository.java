@@ -2,17 +2,14 @@ package com.cashflow.demo.repository;
 
 import com.cashflow.demo.entity.TransactionModel;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import java.lang.ScopedValue;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
-public interface TransactionRepository extends JpaRepository<TransactionModel, Long> {
-    List<TransactionModel> findAllByUser_Id(Long userId);
-
-    List<TransactionModel> findByUser_IdAndTitleContainingIgnoreCase(
-            Long userId, String name);
+public interface TransactionRepository extends JpaRepository<TransactionModel, Long>, JpaSpecificationExecutor<TransactionModel> {
+    Page<TransactionModel> findAllByUser_Id(Long userId, Pageable pageable);
 
     Optional<TransactionModel> findByIdAndUser_Id(Long id, Long userId);
 }

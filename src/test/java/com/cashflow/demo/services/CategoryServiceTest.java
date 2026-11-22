@@ -118,4 +118,50 @@ class CategoryServiceTest {
         assertEquals("Antiga", category.getTitle());
         verify(repository, never()).save(any());
     }
+    @Test
+    void searchRejectsInvalidTypeId() {
+        when(users.existsById(1L)).thenReturn(true);
+        var error = assertThrows(ResponseStatusException.class,
+                () -> service.search(1L, null, 0L,
+                        org.springframework.data.domain.PageRequest.of(0, 20)));
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void searchAlwaysScopesResultsToUserAndCombinesFilters() {
+        var pageable = org.springframework.data.domain.PageRequest.of(1, 5);
+        when(users.existsById(1L)).thenReturn(true);
+        when(repository.findAll(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<CategoryModel>>any(),
+                eq(pageable))).thenAnswer(invocation -> {
+            org.springframework.data.jpa.domain.Specification<CategoryModel> specification = invocation.getArgument(0);
+            jakarta.persistence.criteria.Root<CategoryModel> root = mock(jakarta.persistence.criteria.Root.class);
+            jakarta.persistence.criteria.Path<Object> user = mock(jakarta.persistence.criteria.Path.class);
+            jakarta.persistence.criteria.Path<Object> userId = mock(jakarta.persistence.criteria.Path.class);
+            jakarta.persistence.criteria.Path<Object> type = mock(jakarta.persistence.criteria.Path.class);
+            jakarta.persistence.criteria.Path<Object> typeId = mock(jakarta.persistence.criteria.Path.class);
+            jakarta.persistence.criteria.Path<String> title = mock(jakarta.persistence.criteria.Path.class);
+            var cb = mock(jakarta.persistence.criteria.CriteriaBuilder.class);
+            var lowered = mock(jakarta.persistence.criteria.Expression.class);
+            when(root.get("user")).thenReturn(user);
+            when(user.get("id")).thenReturn(userId);
+            when(root.get("type")).thenReturn(type);
+            when(type.get("id")).thenReturn(typeId);
+            when(root.<String>get("title")).thenReturn(title);
+            when(cb.lower(title)).thenReturn(lowered);
+
+            specification.toPredicate(root, null, cb);
+
+            verify(cb).equal(userId, 1L);
+            verify(cb).equal(typeId, 2L);
+            verify(cb).like(lowered, "%alimentação%", '!');
+            return org.springframework.data.domain.Page.empty(pageable);
+        });
+
+        var result = service.search(1L, " Alimentação ", 2L, pageable);
+        assertEquals(1, result.getNumber());
+        assertEquals(5, result.getSize());
+        verify(repository).findAll(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<CategoryModel>>any(), eq(pageable));
+    }
+
 }

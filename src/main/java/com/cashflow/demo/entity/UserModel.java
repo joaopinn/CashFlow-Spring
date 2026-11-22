@@ -24,6 +24,7 @@ public class UserModel {
 
     private String segment;
 
+    @Column(nullable = false, unique = true)
     private String email;
 
     @JsonIgnore

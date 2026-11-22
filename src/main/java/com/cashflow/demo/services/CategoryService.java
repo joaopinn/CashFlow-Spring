@@ -12,7 +12,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import static com.cashflow.demo.repository.specification.TextFilters.containsIgnoreCase;
 
 @Service
 @Transactional(readOnly = true)
@@ -32,9 +36,9 @@ public class CategoryService {
         this.userRepository = userRepository;
     }
 
-    public List<CategoryResponse> findAll(Long userId) {
+    public Page<CategoryResponse> findAll(Long userId, Pageable pageable) {
         requireUser(userId);
-        return repository.findAllByUser_Id(userId).stream().map(mapper::response).toList();
+        return repository.findAllByUser_Id(userId, pageable).map(mapper::response);
     }
 
     public CategoryResponse findById(Long userId, Long id) {
@@ -44,16 +48,22 @@ public class CategoryService {
         return mapper.response(category);
     }
 
-    public List<CategoryResponse> findByName(Long userId,
-                                             String name) {
+    public Page<CategoryResponse> search(Long userId, String name, Long typeId, Pageable pageable) {
         requireUser(userId);
-
-        if (name == null || name.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe o nome da categoria");
+        if (typeId != null && typeId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O ID do tipo deve ser positivo");
         }
-
-        return repository.findByUser_IdAndTitleContainingIgnoreCase(userId, name.strip())
-                .stream().map(mapper::response).toList();
+        return repository.findAll((root, query, cb) -> {
+            var filters = new ArrayList<Predicate>();
+            filters.add(cb.equal(root.get("user").get("id"), userId));
+            if (name != null && !name.isBlank()) {
+                filters.add(containsIgnoreCase(cb, root.get("title"), name));
+            }
+            if (typeId != null) {
+                filters.add(cb.equal(root.get("type").get("id"), typeId));
+            }
+            return cb.and(filters.toArray(Predicate[]::new));
+        }, pageable).map(mapper::response);
     }
 
     @Transactional
@@ -80,6 +90,10 @@ public class CategoryService {
         var type = typeRepository.findById(request.typeId()).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Tipo de transação não encontrado: " + request.typeId()));
 
+        if (repository.hasTransactionsWithDifferentType(id, request.typeId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A categoria possui transações com outro tipo");
+        }
         mapper.updateEntity(request, category, type);
 
         return mapper.response(repository.save(category));
